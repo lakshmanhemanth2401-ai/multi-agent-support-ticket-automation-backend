@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
     api_v1_prefix: str = Field(default="/api/v1", pattern=r"^/")
+    database_url: str = (
+        "postgresql+psycopg://postgres:postgres@localhost:5432/support_tickets"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
