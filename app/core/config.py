@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:3b"
     ollama_timeout_seconds: float = Field(default=30.0, gt=0)
+    ollama_embedding_model: str = "embeddinggemma"
+    chroma_persist_directory: str = "chroma_data"
+    chroma_collection_name: str = "support_knowledge"
 
     model_config = SettingsConfigDict(
         env_file=".env",
