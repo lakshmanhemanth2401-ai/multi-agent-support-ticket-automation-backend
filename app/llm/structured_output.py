@@ -22,6 +22,12 @@ class ClassificationResult(BaseModel):
     reasoning_summary: str = Field(min_length=1, max_length=500)
 
 
+class TroubleshootingPlan(BaseModel):
+    troubleshooting_steps: list[str] = Field(min_length=1, max_length=8)
+    confidence: float = Field(ge=0.0, le=1.0)
+    summary: str = Field(min_length=1, max_length=500)
+
+
 class StructuredOutputError(ValueError):
     """Raised when an LLM response does not match the expected schema."""
 

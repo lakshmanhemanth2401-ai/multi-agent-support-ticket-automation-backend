@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "embeddinggemma"
     chroma_persist_directory: str = "chroma_data"
     chroma_collection_name: str = "support_knowledge"
+    knowledge_top_k: int = Field(default=5, ge=1, le=20)
+    knowledge_min_relevance: float = Field(default=0.40, ge=0.0, le=1.0)
+    solution_min_confidence: float = Field(default=0.55, ge=0.0, le=1.0)
 
     model_config = SettingsConfigDict(
         env_file=".env",
