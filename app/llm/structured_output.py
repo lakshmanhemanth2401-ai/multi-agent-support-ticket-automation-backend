@@ -28,6 +28,12 @@ class TroubleshootingPlan(BaseModel):
     summary: str = Field(min_length=1, max_length=500)
 
 
+class ProfessionalResponseDraft(BaseModel):
+    subject: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=4_000)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
 class StructuredOutputError(ValueError):
     """Raised when an LLM response does not match the expected schema."""
 
