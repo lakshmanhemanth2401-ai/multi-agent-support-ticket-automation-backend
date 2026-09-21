@@ -30,6 +30,7 @@ class SolutionInput:
     description: str
     classification: ClassificationResult
     knowledge: KnowledgeSearchResult
+    review_feedback: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +73,7 @@ class SolutionAgent(BaseAgent[SolutionInput, SolutionResult]):
                 for result in agent_input.knowledge.results
             ],
             output_schema=schema,
+            review_feedback=agent_input.review_feedback,
         )
         try:
             content = await self.client.chat(messages=messages, output_schema=schema)
@@ -105,6 +107,7 @@ class SolutionAgent(BaseAgent[SolutionInput, SolutionResult]):
         description: str,
         classification: ClassificationResult,
         knowledge: KnowledgeSearchResult,
+        review_feedback: str | None = None,
     ) -> SolutionResult:
         return await self.run(
             SolutionInput(
@@ -112,6 +115,7 @@ class SolutionAgent(BaseAgent[SolutionInput, SolutionResult]):
                 description=description,
                 classification=classification,
                 knowledge=knowledge,
+                review_feedback=review_feedback,
             )
         )
 

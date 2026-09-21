@@ -61,6 +61,7 @@ def build_solution_messages(
     priority: str,
     evidence: list[dict[str, str]],
     output_schema: dict[str, Any],
+    review_feedback: str | None = None,
 ) -> list[dict[str, str]]:
     schema_json = json.dumps(output_schema, separators=(",", ":"))
     evidence_text = "\n\n".join(
@@ -72,6 +73,7 @@ def build_solution_messages(
 
 Classification category: {category}
 Classification priority: {priority}
+Reviewer rework feedback: {review_feedback or "None"}
 
 Required JSON schema:
 {schema_json}
