@@ -29,6 +29,8 @@ from app.services.knowledge_service import KnowledgeService
 from app.services.review_service import ReviewService
 from app.db.repositories.review_repository import ReviewRepository
 from app.db.session import SessionLocal
+from app.db.repositories.audit_repository import AuditRepository
+from app.services.audit_service import AuditService
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,15 +40,19 @@ class WorkflowDependencies:
     solution_agent: SolutionAgent
     response_agent: ResponseAgent
     review_service: ReviewService
+    audit_service: AuditService | None = None
 
 
 def default_workflow_dependencies() -> WorkflowDependencies:
+    session = SessionLocal()
+    audit_service = AuditService(AuditRepository(session))
     return WorkflowDependencies(
         classifier=ClassifierAgent(),
         knowledge_service=KnowledgeService(),
         solution_agent=SolutionAgent(),
         response_agent=ResponseAgent(),
-        review_service=ReviewService(ReviewRepository(SessionLocal())),
+        review_service=ReviewService(ReviewRepository(session), audit_service),
+        audit_service=audit_service,
     )
 
 
@@ -61,10 +67,10 @@ def build_support_workflow(
         input_schema=WorkflowInput,
         output_schema=WorkflowOutput,
     )
-    builder.add_node(CLASSIFIER_NODE, create_classifier_node(deps.classifier))
-    builder.add_node(KNOWLEDGE_NODE, create_knowledge_node(deps.knowledge_service))
-    builder.add_node(SOLUTION_NODE, create_solution_node(deps.solution_agent))
-    builder.add_node(RESPONSE_NODE, create_response_node(deps.response_agent))
+    builder.add_node(CLASSIFIER_NODE, create_classifier_node(deps.classifier, deps.audit_service))
+    builder.add_node(KNOWLEDGE_NODE, create_knowledge_node(deps.knowledge_service, deps.audit_service))
+    builder.add_node(SOLUTION_NODE, create_solution_node(deps.solution_agent, deps.audit_service))
+    builder.add_node(RESPONSE_NODE, create_response_node(deps.response_agent, deps.audit_service))
     builder.add_node(REVIEW_RECORD_NODE, create_review_record_node(deps.review_service))
     builder.add_node(HUMAN_REVIEW_NODE, create_human_review_node(deps.review_service))
     add_workflow_edges(builder)

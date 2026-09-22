@@ -10,55 +10,77 @@ from app.services.review_service import ReviewService
 from app.schemas.review import ReviewAction, ReviewActionRequest
 from app.agents.response_agent import ResponseResult
 from langgraph.types import interrupt
+import logging
+
+from app.observability.metrics import AGENT_EXECUTIONS, AGENT_FAILURES
+from app.services.audit_service import AuditService
+
+logger = logging.getLogger(__name__)
 
 
 WorkflowNode = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
 
-def create_classifier_node(agent: ClassifierAgent) -> WorkflowNode:
+async def _run_agent(*, name: str, ticket_id: int, operation, audit: AuditService | None, details):
+    logger.info("agent_started", extra={"event": "agent_transition", "agent": name, "ticket_id": ticket_id, "status": "started"})
+    try:
+        result = await operation()
+    except Exception as exc:
+        AGENT_EXECUTIONS.labels(name, "failure").inc()
+        AGENT_FAILURES.labels(name, type(exc).__name__).inc()
+        if audit:
+            audit.record_agent_event(ticket_id=ticket_id, agent=name, status="failed", details={"error_type": type(exc).__name__})
+        logger.exception("agent_failed", extra={"event": "agent_transition", "agent": name, "ticket_id": ticket_id, "status": "failed"})
+        raise
+    AGENT_EXECUTIONS.labels(name, "success").inc()
+    if audit:
+        audit.record_agent_event(ticket_id=ticket_id, agent=name, status="completed", details=details(result))
+    logger.info("agent_completed", extra={"event": "agent_transition", "agent": name, "ticket_id": ticket_id, "status": "completed"})
+    return result
+
+
+def create_classifier_node(agent: ClassifierAgent, audit: AuditService | None = None) -> WorkflowNode:
     async def classify(state: WorkflowState) -> dict[str, Any]:
-        result = await agent.classify(
-            title=state["title"], description=state["description"]
+        result = await _run_agent(
+            name="classifier", ticket_id=state["ticket_id"], audit=audit,
+            operation=lambda: agent.classify(title=state["title"], description=state["description"]),
+            details=lambda value: {"category": value.category, "priority": value.priority, "confidence": value.confidence},
         )
         return {"classification": result}
 
     return classify
 
 
-def create_knowledge_node(service: KnowledgeService) -> WorkflowNode:
+def create_knowledge_node(service: KnowledgeService, audit: AuditService | None = None) -> WorkflowNode:
     async def search(state: WorkflowState) -> dict[str, Any]:
-        result = await service.search_for_ticket(
-            title=state["title"],
-            description=state["description"],
-            classification=state["classification"],
+        result = await _run_agent(
+            name="retrieval", ticket_id=state["ticket_id"], audit=audit,
+            operation=lambda: service.search_for_ticket(title=state["title"], description=state["description"], classification=state["classification"]),
+            details=lambda value: {"result_count": len(value.results), "confidence": value.confidence, "knowledge_sufficient": value.sufficient},
         )
         return {"knowledge": result}
 
     return search
 
 
-def create_solution_node(agent: SolutionAgent) -> WorkflowNode:
+def create_solution_node(agent: SolutionAgent, audit: AuditService | None = None) -> WorkflowNode:
     async def solve(state: WorkflowState) -> dict[str, Any]:
-        result = await agent.generate(
-            title=state["title"],
-            description=state["description"],
-            classification=state["classification"],
-            knowledge=state["knowledge"],
-            review_feedback=state.get("review_comments"),
+        result = await _run_agent(
+            name="solution", ticket_id=state["ticket_id"], audit=audit,
+            operation=lambda: agent.generate(title=state["title"], description=state["description"], classification=state["classification"], knowledge=state["knowledge"], review_feedback=state.get("review_comments")),
+            details=lambda value: {"confidence": value.confidence, "escalation_required": value.escalation_required, "source_count": len(value.supporting_sources)},
         )
         return {"solution": result}
 
     return solve
 
 
-def create_response_node(agent: ResponseAgent) -> WorkflowNode:
+def create_response_node(agent: ResponseAgent, audit: AuditService | None = None) -> WorkflowNode:
     async def respond(state: WorkflowState) -> dict[str, Any]:
-        result = await agent.generate(
-            title=state["title"],
-            description=state["description"],
-            classification=state["classification"],
-            knowledge=state["knowledge"],
-            solution=state["solution"],
+        result = await _run_agent(
+            name="response", ticket_id=state["ticket_id"], audit=audit,
+            operation=lambda: agent.generate(title=state["title"], description=state["description"], classification=state["classification"], knowledge=state["knowledge"], solution=state["solution"]),
+            details=lambda value: {"confidence": value.confidence, "escalation_required": value.escalation_required, "source_count": len(value.supporting_sources)},
         )
         return {"response": result}
 

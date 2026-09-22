@@ -4,6 +4,9 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
+from app.core.retry import retry_sync
+from app.observability.metrics import LLM_LATENCY, LLM_REQUESTS
+from time import perf_counter
 
 
 class EmbeddingError(RuntimeError):
@@ -38,7 +41,9 @@ class OllamaEmbeddings:
         if any(not text for text in clean_texts):
             raise ValueError("Embedding input cannot be empty")
 
-        try:
+        started = perf_counter()
+
+        def send() -> httpx.Response:
             response = self._client.post(
                 "/api/embed",
                 json={
@@ -48,23 +53,41 @@ class OllamaEmbeddings:
                 },
             )
             response.raise_for_status()
+            return response
+
+        try:
+            response = retry_sync(
+                send,
+                attempts=settings.retry_max_attempts,
+                base_delay=settings.retry_base_delay_seconds,
+                retry_for=(httpx.ConnectError, httpx.TimeoutException),
+            )
         except httpx.HTTPStatusError as exc:
+            LLM_REQUESTS.labels("embedding", "failure").inc()
             raise EmbeddingError(self._http_error_message(exc.response)) from exc
         except httpx.RequestError as exc:
+            LLM_REQUESTS.labels("embedding", "failure").inc()
             raise EmbeddingError("Could not communicate with Ollama embeddings") from exc
+        finally:
+            LLM_LATENCY.labels("embedding").observe(perf_counter() - started)
 
         try:
             payload = _EmbeddingResponse.model_validate(response.json())
         except (ValueError, ValidationError) as exc:
+            LLM_REQUESTS.labels("embedding", "malformed").inc()
             raise EmbeddingError("Ollama returned malformed embeddings") from exc
 
         if len(payload.embeddings) != len(clean_texts):
+            LLM_REQUESTS.labels("embedding", "malformed").inc()
             raise EmbeddingError("Ollama returned an unexpected number of embeddings")
         if any(not vector for vector in payload.embeddings):
+            LLM_REQUESTS.labels("embedding", "malformed").inc()
             raise EmbeddingError("Ollama returned an empty embedding vector")
         dimensions = {len(vector) for vector in payload.embeddings}
         if len(dimensions) != 1:
+            LLM_REQUESTS.labels("embedding", "malformed").inc()
             raise EmbeddingError("Ollama returned inconsistent embedding dimensions")
+        LLM_REQUESTS.labels("embedding", "success").inc()
         return payload.embeddings
 
     def embed_query(self, query: str) -> list[float]:

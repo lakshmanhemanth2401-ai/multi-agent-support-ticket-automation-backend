@@ -4,11 +4,17 @@ from typing import Any
 from app.agents.knowledge_agent import KnowledgeSearchResult
 from app.agents.response_agent import ResponseResult
 from app.agents.solution_agent import SolutionResult
-from app.graph.workflow import WorkflowDependencies, build_support_workflow
+from app.graph.workflow import WorkflowDependencies, build_support_workflow, default_workflow_dependencies
 from app.llm.structured_output import ClassificationResult
 from app.schemas.review import ReviewActionRequest, ReviewRead
 from langgraph.types import Command
 from uuid import uuid4
+from time import perf_counter
+import logging
+
+from app.observability.metrics import TICKETS_PROCESSED, WORKFLOW_DURATION
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +40,16 @@ class WorkflowExecutionService:
         *,
         workflow: Any | None = None,
     ) -> None:
-        self.workflow = workflow or build_support_workflow(dependencies)
+        resolved_dependencies = dependencies
+        if workflow is None and resolved_dependencies is None:
+            resolved_dependencies = default_workflow_dependencies()
+        self.dependencies = resolved_dependencies
+        self.workflow = workflow or build_support_workflow(resolved_dependencies)
+
+    def _record_failure(self, ticket_id: int, stage: str, exc: Exception) -> None:
+        if self.dependencies and self.dependencies.audit_service:
+            self.dependencies.audit_service.record_workflow_failure(ticket_id=ticket_id, stage=stage, error=exc)
+        logger.exception("workflow_failed", extra={"event": "workflow_failure", "ticket_id": ticket_id, "stage": stage, "status": "failed"})
 
     async def execute(
         self, *, ticket_id: int, title: str, description: str, thread_id: str | None = None
@@ -48,10 +63,17 @@ class WorkflowExecutionService:
     ) -> WorkflowReviewPause:
         resolved_thread_id = thread_id or str(uuid4())
         config = {"configurable": {"thread_id": resolved_thread_id}}
-        await self.workflow.ainvoke(
-            {"ticket_id": ticket_id, "thread_id": resolved_thread_id, "title": title, "description": description},
-            config,
-        )
+        started = perf_counter()
+        try:
+            await self.workflow.ainvoke(
+                {"ticket_id": ticket_id, "thread_id": resolved_thread_id, "title": title, "description": description}, config,
+            )
+            WORKFLOW_DURATION.labels("awaiting_review").observe(perf_counter() - started)
+        except Exception as exc:
+            WORKFLOW_DURATION.labels("failure").observe(perf_counter() - started)
+            TICKETS_PROCESSED.labels("failure").inc()
+            self._record_failure(ticket_id, "execution", exc)
+            raise
         state = self.workflow.get_state(config).values
         return WorkflowReviewPause(
             thread_id=resolved_thread_id,
@@ -63,13 +85,26 @@ class WorkflowExecutionService:
         self, *, thread_id: str, request: ReviewActionRequest
     ) -> WorkflowReviewPause | WorkflowExecutionResult:
         config = {"configurable": {"thread_id": thread_id}}
-        await self.workflow.ainvoke(Command(resume=request.model_dump(mode="json")), config)
+        started = perf_counter()
+        try:
+            await self.workflow.ainvoke(Command(resume=request.model_dump(mode="json")), config)
+        except Exception as exc:
+            WORKFLOW_DURATION.labels("failure").observe(perf_counter() - started)
+            snapshot = self.workflow.get_state(config)
+            ticket_id = snapshot.values.get("ticket_id")
+            if ticket_id is not None:
+                self._record_failure(ticket_id, "review", exc)
+            logger.exception("workflow_review_failed", extra={"event": "workflow_failure", "stage": "review", "status": "failed"})
+            raise
         snapshot = self.workflow.get_state(config)
         state = snapshot.values
         if snapshot.next:
+            WORKFLOW_DURATION.labels("awaiting_review").observe(perf_counter() - started)
             return WorkflowReviewPause(
                 thread_id=thread_id, review=state["review"], response=state["response"]
             )
+        WORKFLOW_DURATION.labels("completed").observe(perf_counter() - started)
+        TICKETS_PROCESSED.labels("success").inc()
         return WorkflowExecutionResult(
             classification=state["classification"],
             knowledge=state["knowledge"],

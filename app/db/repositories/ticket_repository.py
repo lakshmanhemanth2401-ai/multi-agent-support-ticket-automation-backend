@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.audit import AuditLog
+from app.db.repositories.audit_repository import AuditRepository
 from app.models.ticket import Ticket
 from app.schemas.ticket import TicketCreate
 
@@ -14,12 +14,8 @@ class TicketRepository:
         ticket = Ticket(**ticket_data.model_dump(mode="json"))
         self.db.add(ticket)
         self.db.flush()
-        self.db.add(
-            AuditLog(
-                ticket_id=ticket.id,
-                action="ticket_created",
-                details={"status": ticket.status},
-            )
+        AuditRepository(self.db).add(
+            ticket_id=ticket.id, action="ticket_created", details={"status": ticket.status}
         )
         self.db.commit()
         self.db.refresh(ticket)

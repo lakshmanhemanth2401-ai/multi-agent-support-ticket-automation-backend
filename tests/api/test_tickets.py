@@ -80,3 +80,18 @@ def test_create_ticket_validates_payload(client: TestClient) -> None:
     )
 
     assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
+
+
+def test_metrics_endpoint_and_request_correlation(client: TestClient) -> None:
+    response = client.get("/metrics", headers={"X-Request-ID": "test-request-123"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "test-request-123"
+    assert "support_tickets_processed_total" in response.text
+    assert "support_agent_executions_total" in response.text
+    assert "support_llm_request_duration_seconds" in response.text
+    assert "support_retrieval_duration_seconds" in response.text
+    assert "support_workflow_duration_seconds" in response.text
+    assert "support_reviews_total" in response.text

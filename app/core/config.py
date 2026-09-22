@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     knowledge_top_k: int = Field(default=5, ge=1, le=20)
     knowledge_min_relevance: float = Field(default=0.40, ge=0.0, le=1.0)
     solution_min_confidence: float = Field(default=0.55, ge=0.0, le=1.0)
+    retry_max_attempts: int = Field(default=3, ge=1, le=5)
+    retry_base_delay_seconds: float = Field(default=0.1, ge=0.0, le=5.0)
 
     model_config = SettingsConfigDict(
         env_file=".env",

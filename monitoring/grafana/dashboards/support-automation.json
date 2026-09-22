@@ -1,0 +1,17 @@
+{
+  "title": "Support Automation",
+  "uid": "support-automation",
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Tickets processed", "targets": [{"expr": "sum(increase(support_tickets_processed_total[$__range]))"}], "gridPos": {"x": 0, "y": 0, "w": 6, "h": 5}},
+    {"id": 2, "type": "timeseries", "title": "Workflow p95 latency", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(support_workflow_duration_seconds_bucket[5m])) by (le, status))"}], "gridPos": {"x": 6, "y": 0, "w": 9, "h": 8}},
+    {"id": 3, "type": "timeseries", "title": "Agent failures", "targets": [{"expr": "sum(rate(support_agent_failures_total[5m])) by (agent, error_type)"}], "gridPos": {"x": 15, "y": 0, "w": 9, "h": 8}},
+    {"id": 4, "type": "timeseries", "title": "LLM p95 latency", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(support_llm_request_duration_seconds_bucket[5m])) by (le, operation))"}], "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}},
+    {"id": 5, "type": "timeseries", "title": "Retrieval p95 latency", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(support_retrieval_duration_seconds_bucket[5m])) by (le, status))"}], "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}},
+    {"id": 6, "type": "stat", "title": "Approvals", "targets": [{"expr": "sum(increase(support_reviews_total{action=\"approve\"}[$__range]))"}], "gridPos": {"x": 0, "y": 16, "w": 6, "h": 5}},
+    {"id": 7, "type": "stat", "title": "Rejections", "targets": [{"expr": "sum(increase(support_reviews_total{action=\"reject\"}[$__range]))"}], "gridPos": {"x": 6, "y": 16, "w": 6, "h": 5}},
+    {"id": 8, "type": "timeseries", "title": "Request latency", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(support_http_request_duration_seconds_bucket[5m])) by (le, path))"}], "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8}}
+  ]
+}

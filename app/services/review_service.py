@@ -2,6 +2,9 @@ from datetime import datetime, timezone
 
 from app.agents.response_agent import ResponseResult
 from app.db.repositories.review_repository import ReviewRepository
+from app.db.repositories.audit_repository import AuditRepository
+from app.services.audit_service import AuditService
+from app.observability.metrics import REVIEWS
 from app.schemas.review import (
     ReviewAction,
     ReviewActionRequest,
@@ -20,8 +23,9 @@ class InvalidReviewTransitionError(ValueError):
 
 
 class ReviewService:
-    def __init__(self, repository: ReviewRepository) -> None:
+    def __init__(self, repository: ReviewRepository, audit_service: AuditService | None = None) -> None:
         self.repository = repository
+        self.audit_service = audit_service or AuditService(AuditRepository(repository.db))
 
     def create_pending(
         self, *, ticket_id: int, thread_id: str, response: ResponseResult
@@ -57,7 +61,12 @@ class ReviewService:
         review.edited_subject = request.edited_subject
         review.edited_response = request.edited_response
         review.reviewed_at = datetime.now(timezone.utc)
-        return ReviewRead.model_validate(self.repository.save(review))
+        saved = ReviewRead.model_validate(self.repository.save(review))
+        self.audit_service.record_review_action(
+            ticket_id=review.ticket_id, action=request.action.value, reviewer=request.reviewer
+        )
+        REVIEWS.labels(request.action.value).inc()
+        return saved
 
     def mark_reworked(self, review_id: int, response: ResponseResult) -> ReviewRead:
         review = self._get(review_id)

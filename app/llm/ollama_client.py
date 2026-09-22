@@ -5,6 +5,9 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings
+from app.core.retry import retry_async
+from app.observability.metrics import LLM_LATENCY, LLM_REQUESTS
+from time import perf_counter
 
 
 class OllamaError(RuntimeError):
@@ -56,24 +59,43 @@ class OllamaClient:
             "options": {"temperature": 0},
         }
 
-        try:
+        started = perf_counter()
+
+        async def send() -> httpx.Response:
             response = await self._client.post("/api/chat", json=payload)
             response.raise_for_status()
+            return response
+
+        try:
+            response = await retry_async(
+                send,
+                attempts=settings.retry_max_attempts,
+                base_delay=settings.retry_base_delay_seconds,
+                retry_for=(httpx.ConnectError, httpx.TimeoutException),
+            )
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            LLM_REQUESTS.labels("chat", "failure").inc()
             raise OllamaUnavailableError("Ollama is unavailable") from exc
         except httpx.HTTPStatusError as exc:
+            LLM_REQUESTS.labels("chat", "failure").inc()
             detail = self._extract_error(exc.response)
             raise OllamaResponseError(f"Ollama request failed: {detail}") from exc
         except httpx.RequestError as exc:
+            LLM_REQUESTS.labels("chat", "failure").inc()
             raise OllamaUnavailableError("Could not communicate with Ollama") from exc
+        finally:
+            LLM_LATENCY.labels("chat").observe(perf_counter() - started)
 
         try:
             parsed = _OllamaChatResponse.model_validate(response.json())
         except (ValueError, ValidationError) as exc:
+            LLM_REQUESTS.labels("chat", "malformed").inc()
             raise OllamaResponseError("Ollama returned a malformed response") from exc
 
         if not parsed.message.content.strip():
+            LLM_REQUESTS.labels("chat", "malformed").inc()
             raise OllamaResponseError("Ollama returned an empty response")
+        LLM_REQUESTS.labels("chat", "success").inc()
         return parsed.message.content
 
     async def close(self) -> None:

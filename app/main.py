@@ -3,11 +3,20 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
+from app.api.routes.metrics import router as metrics_router
 from app.core.config import settings
 from app.core.logging import configure_logging
+from app.core.errors import ApplicationError
+from app.api.errors import (
+    application_error_handler, database_error_handler, timeout_error_handler,
+    unexpected_error_handler, validation_error_handler,
+)
+from app.observability.middleware import RequestContextMiddleware
 
 
 configure_logging()
@@ -29,7 +38,14 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     application.include_router(health_router)
+    application.include_router(metrics_router)
     application.include_router(api_router, prefix=settings.api_v1_prefix)
+    application.add_middleware(RequestContextMiddleware)
+    application.add_exception_handler(ApplicationError, application_error_handler)
+    application.add_exception_handler(RequestValidationError, validation_error_handler)
+    application.add_exception_handler(SQLAlchemyError, database_error_handler)
+    application.add_exception_handler(TimeoutError, timeout_error_handler)
+    application.add_exception_handler(Exception, unexpected_error_handler)
     return application
 
 
