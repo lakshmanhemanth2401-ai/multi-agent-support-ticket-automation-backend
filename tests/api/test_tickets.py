@@ -70,7 +70,8 @@ def test_get_missing_ticket_returns_404(client: TestClient) -> None:
     response = client.get("/api/v1/tickets/999")
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "Ticket not found"}
+    assert response.json()["error"]["code"] == "resource_not_found"
+    assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
 
 
 def test_create_ticket_validates_payload(client: TestClient) -> None:
@@ -82,6 +83,29 @@ def test_create_ticket_validates_payload(client: TestClient) -> None:
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
     assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"title": "   ", "description": "Valid description"},
+        {"title": "Valid", "description": "   "},
+        {"title": "Valid", "description": "Valid", "unexpected": "field"},
+        {"title": "Valid", "description": "Valid", "category": "invalid/category"},
+    ],
+)
+def test_create_ticket_rejects_unsafe_or_unknown_input(client: TestClient, payload: dict) -> None:
+    response = client.post("/api/v1/tickets", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_invalid_request_id_is_replaced(client: TestClient) -> None:
+    response = client.get("/health", headers={"X-Request-ID": "invalid request id\n"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] != "invalid request id\n"
 
 
 def test_metrics_endpoint_and_request_correlation(client: TestClient) -> None:

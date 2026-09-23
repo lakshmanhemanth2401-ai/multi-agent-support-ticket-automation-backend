@@ -20,18 +20,22 @@ class ReviewAction(StrEnum):
 
 
 class ReviewCreate(BaseModel):
-    ticket_id: int
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    ticket_id: int = Field(gt=0)
     workflow_thread_id: str = Field(min_length=1, max_length=100)
     generated_subject: str = Field(min_length=1, max_length=200)
-    generated_response: str = Field(min_length=1)
+    generated_response: str = Field(min_length=1, max_length=10_000)
 
 
 class ReviewActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
     action: ReviewAction
     reviewer: str = Field(min_length=1, max_length=150)
-    comments: str | None = None
+    comments: str | None = Field(default=None, max_length=2_000)
     edited_subject: str | None = Field(default=None, max_length=200)
-    edited_response: str | None = None
+    edited_response: str | None = Field(default=None, max_length=10_000)
 
     @model_validator(mode="after")
     def validate_action_fields(self) -> "ReviewActionRequest":

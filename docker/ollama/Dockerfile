@@ -1,0 +1,3 @@
+FROM ollama/ollama:0.11.4
+
+EXPOSE 11434

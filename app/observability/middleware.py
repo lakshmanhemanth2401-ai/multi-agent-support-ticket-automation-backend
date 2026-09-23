@@ -1,4 +1,5 @@
 import logging
+import re
 from time import perf_counter
 from uuid import uuid4
 
@@ -9,11 +10,17 @@ from app.core.logging import request_id_context
 from app.observability.metrics import HTTP_LATENCY, HTTP_REQUESTS
 
 logger = logging.getLogger(__name__)
+_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = request.headers.get("X-Request-ID") or str(uuid4())
+        supplied_request_id = request.headers.get("X-Request-ID", "")
+        request_id = (
+            supplied_request_id
+            if _REQUEST_ID_PATTERN.fullmatch(supplied_request_id)
+            else str(uuid4())
+        )
         token = request_id_context.set(request_id)
         started = perf_counter()
         status_code = 500

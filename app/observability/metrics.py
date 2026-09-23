@@ -1,7 +1,3 @@
-from contextlib import contextmanager
-from time import perf_counter
-from typing import Iterator
-
 from prometheus_client import Counter, Histogram
 
 TICKETS_PROCESSED = Counter("support_tickets_processed_total", "Tickets completed by the workflow", ["status"])
@@ -14,12 +10,3 @@ WORKFLOW_DURATION = Histogram("support_workflow_duration_seconds", "Workflow dur
 REVIEWS = Counter("support_reviews_total", "Review decisions", ["action"])
 HTTP_REQUESTS = Counter("support_http_requests_total", "HTTP requests", ["method", "status"])
 HTTP_LATENCY = Histogram("support_http_request_duration_seconds", "HTTP request latency", ["method", "path"])
-
-
-@contextmanager
-def observe(histogram, *labels: str) -> Iterator[None]:
-    started = perf_counter()
-    try:
-        yield
-    finally:
-        histogram.labels(*labels).observe(perf_counter() - started)

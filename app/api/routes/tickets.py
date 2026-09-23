@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Path, Query, status
 
 from app.api.dependencies import DatabaseSession
 from app.schemas.ticket import TicketCreate, TicketRead
 from app.services.ticket_service import TicketService
+from app.core.errors import ResourceNotFoundError
 
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -25,11 +26,8 @@ def list_tickets(
 
 
 @router.get("/{ticket_id}", response_model=TicketRead)
-def get_ticket(ticket_id: int, db: DatabaseSession) -> TicketRead:
+def get_ticket(ticket_id: Annotated[int, Path(gt=0)], db: DatabaseSession) -> TicketRead:
     ticket = TicketService(db).get_ticket(ticket_id)
     if ticket is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ticket not found",
-        )
+        raise ResourceNotFoundError()
     return ticket
