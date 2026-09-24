@@ -11,7 +11,8 @@ RUN pip install --no-cache-dir --requirement requirements.txt
 COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY docker/api/entrypoint.sh ./docker/api/entrypoint.sh
 RUN mkdir -p /app/chroma_data && chown -R app:app /app
 USER app
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+CMD ["sh", "docker/api/entrypoint.sh"]

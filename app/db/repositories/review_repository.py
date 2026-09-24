@@ -22,6 +22,12 @@ class ReviewRepository:
     def get_by_thread(self, thread_id: str) -> Review | None:
         return self.db.scalar(select(Review).where(Review.workflow_thread_id == thread_id))
 
+    def list(self, *, status: str | None = None, offset: int = 0, limit: int = 100) -> list[Review]:
+        statement = select(Review).order_by(Review.created_at.desc()).offset(offset).limit(limit)
+        if status is not None:
+            statement = statement.where(Review.status == status)
+        return list(self.db.scalars(statement).all())
+
     def save(self, review: Review) -> Review:
         self.db.add(review)
         self.db.commit()

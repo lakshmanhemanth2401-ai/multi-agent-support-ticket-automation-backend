@@ -18,6 +18,7 @@ from app.api.errors import (
     unexpected_error_handler, validation_error_handler,
 )
 from app.observability.middleware import RequestContextMiddleware
+from app.graph.checkpoint import workflow_checkpointer
 
 
 configure_logging()
@@ -25,9 +26,17 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting %s", settings.app_name)
-    yield
+    if hasattr(application.state, "workflow_service"):
+        del application.state.workflow_service
+    async with workflow_checkpointer() as checkpointer:
+        application.state.workflow_checkpointer = checkpointer
+        yield
+    service = getattr(application.state, "workflow_service", None)
+    if service is not None and service.dependencies is not None:
+        service.dependencies.review_service.repository.db.close()
+        del application.state.workflow_service
     logger.info("Stopping %s", settings.app_name)
 
 

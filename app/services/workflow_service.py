@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class WorkflowExecutionResult:
+    thread_id: str
     classification: ClassificationResult
     knowledge: KnowledgeSearchResult
     solution: SolutionResult
@@ -74,7 +75,7 @@ class WorkflowExecutionService:
             TICKETS_PROCESSED.labels("failure").inc()
             self._record_failure(ticket_id, "execution", exc)
             raise
-        state = self.workflow.get_state(config).values
+        state = (await self.workflow.aget_state(config)).values
         return WorkflowReviewPause(
             thread_id=resolved_thread_id,
             review=state["review"],
@@ -90,13 +91,13 @@ class WorkflowExecutionService:
             await self.workflow.ainvoke(Command(resume=request.model_dump(mode="json")), config)
         except Exception as exc:
             WORKFLOW_DURATION.labels("failure").observe(perf_counter() - started)
-            snapshot = self.workflow.get_state(config)
+            snapshot = await self.workflow.aget_state(config)
             ticket_id = snapshot.values.get("ticket_id")
             if ticket_id is not None:
                 self._record_failure(ticket_id, "review", exc)
             logger.exception("workflow_review_failed", extra={"event": "workflow_failure", "stage": "review", "status": "failed"})
             raise
-        snapshot = self.workflow.get_state(config)
+        snapshot = await self.workflow.aget_state(config)
         state = snapshot.values
         if snapshot.next:
             WORKFLOW_DURATION.labels("awaiting_review").observe(perf_counter() - started)
@@ -106,6 +107,26 @@ class WorkflowExecutionService:
         WORKFLOW_DURATION.labels("completed").observe(perf_counter() - started)
         TICKETS_PROCESSED.labels("success").inc()
         return WorkflowExecutionResult(
+            thread_id=thread_id,
+            classification=state["classification"],
+            knowledge=state["knowledge"],
+            solution=state["solution"],
+            response=state["response"],
+            review=state["review"],
+        )
+
+    async def get_status(self, *, thread_id: str) -> WorkflowReviewPause | WorkflowExecutionResult:
+        config = {"configurable": {"thread_id": thread_id}}
+        snapshot = await self.workflow.aget_state(config)
+        state = snapshot.values
+        if not state or "review" not in state or "response" not in state:
+            raise LookupError(f"Workflow {thread_id} was not found")
+        if snapshot.next:
+            return WorkflowReviewPause(
+                thread_id=thread_id, review=state["review"], response=state["response"]
+            )
+        return WorkflowExecutionResult(
+            thread_id=thread_id,
             classification=state["classification"],
             knowledge=state["knowledge"],
             solution=state["solution"],

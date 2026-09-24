@@ -11,3 +11,9 @@ class ResourceNotFoundError(ApplicationError):
     status_code = 404
     code = "resource_not_found"
     public_message = "The requested resource was not found"
+
+
+class ConflictError(ApplicationError):
+    status_code = 409
+    code = "invalid_state_transition"
+    public_message = "The requested action is not valid for the current state"
