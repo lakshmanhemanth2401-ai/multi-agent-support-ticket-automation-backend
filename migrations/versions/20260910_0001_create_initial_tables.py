@@ -49,7 +49,10 @@ def upgrade() -> None:
         sa.Column("details", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["ticket_id"], ["tickets.id"], name=op.f("fk_audit_logs_ticket_id_tickets"), ondelete="CASCADE"
+            ["ticket_id"],
+            ["tickets.id"],
+            name=op.f("fk_audit_logs_ticket_id_tickets"),
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_audit_logs")),
     )
@@ -63,7 +66,10 @@ def upgrade() -> None:
         sa.Column("feedback", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["ticket_id"], ["tickets.id"], name=op.f("fk_reviews_ticket_id_tickets"), ondelete="CASCADE"
+            ["ticket_id"],
+            ["tickets.id"],
+            name=op.f("fk_reviews_ticket_id_tickets"),
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_reviews")),
     )

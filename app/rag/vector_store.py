@@ -64,8 +64,8 @@ class ChromaVectorStore:
         self.collection.upsert(
             ids=ids,
             documents=documents,
-            embeddings=embeddings,
-            metadatas=metadatas,
+            embeddings=embeddings,  # type: ignore[arg-type]
+            metadatas=metadatas,  # type: ignore[arg-type]
         )
         return len(chunks)
 
@@ -79,7 +79,7 @@ class ChromaVectorStore:
 
         query_embedding = self.embedding_provider.embed_query(query.strip())
         result = self.collection.query(
-            query_embeddings=[query_embedding],
+            query_embeddings=[query_embedding],  # type: ignore[arg-type]
             n_results=min(top_k, self.count),
             include=["documents", "metadatas", "distances"],
         )
@@ -107,6 +107,12 @@ class ChromaVectorStore:
     def delete_collection(self) -> None:
         self.client.delete_collection(self.collection.name)
 
+    def delete_sources(self, sources: Sequence[str]) -> None:
+        clean_sources = sorted({source for source in sources if source})
+        if clean_sources:
+            source_filter: Any = {"source": {"$in": clean_sources}}
+            self.collection.delete(where=source_filter)
+
     @staticmethod
     def _chunk_id(chunk: DocumentChunk) -> str:
         chunk_index = chunk.metadata.get("chunk_index", 0)
@@ -129,9 +135,7 @@ class ChromaVectorStore:
         return serialized
 
     @staticmethod
-    def _deserialize_metadata(
-        metadata: dict[str, str | int | float | bool]
-    ) -> dict[str, Any]:
+    def _deserialize_metadata(metadata: dict[str, str | int | float | bool]) -> dict[str, Any]:
         restored: dict[str, Any] = dict(metadata)
         json_fields = str(restored.pop("_json_fields", "")).split(",")
         for key in filter(None, json_fields):

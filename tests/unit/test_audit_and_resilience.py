@@ -23,12 +23,20 @@ def test_audit_service_persists_events_and_redacts_sensitive_data() -> None:
     AuditService(repository).record(
         ticket_id=1,
         action="classifier_completed",
-        details={"category": "network", "api_token": "secret-value", "description": "private ticket text"},
+        details={
+            "category": "network",
+            "api_token": "secret-value",
+            "description": "private ticket text",
+        },
     )
 
-    event = repository.list_for_ticket(1)[0]
+    event = repository.list_for_ticket(1)[0][0]
     assert event.action == "classifier_completed"
-    assert event.details == {"category": "network", "api_token": "[REDACTED]", "description": "[REDACTED]"}
+    assert event.details == {
+        "category": "network",
+        "api_token": "[REDACTED]",
+        "description": "[REDACTED]",
+    }
     session.close()
     engine.dispose()
 

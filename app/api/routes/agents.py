@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, status
 
-from app.api.dependencies import DatabaseSession, WorkflowService
+from app.api.dependencies import DatabaseSession, SupportUser, WorkflowService
 from app.core.errors import ResourceNotFoundError
 from app.schemas.workflow import WorkflowRead
 from app.services.ticket_service import TicketService
@@ -19,6 +19,7 @@ async def start_workflow(
     ticket_id: Annotated[int, Path(gt=0)],
     db: DatabaseSession,
     workflow_service: WorkflowService,
+    _: SupportUser,
 ) -> WorkflowRead:
     ticket = TicketService(db).get_ticket(ticket_id)
     if ticket is None:
@@ -33,6 +34,7 @@ async def start_workflow(
 async def get_workflow(
     thread_id: Annotated[str, Path(min_length=1, max_length=100)],
     workflow_service: WorkflowService,
+    _: SupportUser,
 ) -> WorkflowRead:
     try:
         result: WorkflowReviewPause | WorkflowExecutionResult = await workflow_service.get_status(

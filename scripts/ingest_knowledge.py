@@ -5,6 +5,7 @@ from pathlib import Path
 from app.core.logging import configure_logging
 from app.db.session import SessionLocal
 from app.rag.ingestion import create_document_chunks, ingest_directory, load_documents
+from app.rag.vector_store import ChromaVectorStore
 
 
 logger = logging.getLogger(__name__)
@@ -44,12 +45,23 @@ def main() -> int:
         return 0
 
     with SessionLocal() as db:
+        documents = load_documents(args.directory)
+        chunks = create_document_chunks(
+            documents,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap,
+        )
         chunk_count = ingest_directory(
             db,
             args.directory,
             chunk_size=args.chunk_size,
             chunk_overlap=args.chunk_overlap,
         )
+        vector_store = ChromaVectorStore()
+        vector_store.delete_sources([document.source for document in documents])
+        indexed_count = vector_store.upsert_chunks(chunks)
+        if indexed_count != chunk_count:
+            raise RuntimeError("Database and vector index chunk counts do not match")
     logger.info("Ingested %d knowledge chunks", chunk_count)
     return 0
 

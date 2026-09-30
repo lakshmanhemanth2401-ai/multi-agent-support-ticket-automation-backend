@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
+from app.db.repositories.knowledge_repository import KnowledgeRepository
 from app.models.knowledge import KnowledgeDocument
 from app.rag.chunking import chunk_document, clean_document_text
 from app.rag.ingestion import create_document_chunks, ingest_directory, load_documents
@@ -73,9 +74,7 @@ def test_create_document_chunks_preserves_document_metadata(tmp_path: Path) -> N
         encoding="utf-8",
     )
 
-    chunks = create_document_chunks(
-        load_documents(tmp_path), chunk_size=150, chunk_overlap=20
-    )
+    chunks = create_document_chunks(load_documents(tmp_path), chunk_size=150, chunk_overlap=20)
 
     assert len(chunks) > 1
     assert all(chunk.metadata["source"] == "guide.txt" for chunk in chunks)
@@ -96,15 +95,37 @@ def test_ingest_directory_replaces_existing_source_chunks(tmp_path: Path) -> Non
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 
     with session_factory() as session:
-        assert ingest_directory(
-            session, tmp_path, chunk_size=100, chunk_overlap=20
-        ) == 1
-        assert ingest_directory(
-            session, tmp_path, chunk_size=100, chunk_overlap=20
-        ) == 1
+        assert ingest_directory(session, tmp_path, chunk_size=100, chunk_overlap=20) == 1
+        assert ingest_directory(session, tmp_path, chunk_size=100, chunk_overlap=20) == 1
         records = list(session.scalars(select(KnowledgeDocument)).all())
 
     assert len(records) == 1
     assert records[0].source == "policy.md"
     assert records[0].document_metadata["document_id"] == "DATA-1"
+    engine.dispose()
+
+
+def test_knowledge_repository_groups_chunks_and_reports_count() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine, expire_on_commit=False)()
+    session.add_all(
+        [
+            KnowledgeDocument(
+                title="SSO Guide",
+                content=f"chunk {index}",
+                source="identity/sso.md",
+                document_metadata={"team": "identity", "chunk_index": index},
+            )
+            for index in range(3)
+        ]
+    )
+    session.commit()
+
+    items, total = KnowledgeRepository(session).list_documents(offset=0, limit=10)
+
+    assert total == 1
+    assert items[0].chunk_count == 3
+    assert items[0].metadata == {"team": "identity"}
+    session.close()
     engine.dispose()

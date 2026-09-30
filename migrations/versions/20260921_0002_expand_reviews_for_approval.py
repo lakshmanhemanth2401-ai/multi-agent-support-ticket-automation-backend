@@ -26,7 +26,14 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("edited_subject", sa.String(200)))
         batch_op.add_column(sa.Column("edited_response", sa.Text()))
         batch_op.add_column(sa.Column("version", sa.Integer(), server_default="1", nullable=False))
-        batch_op.add_column(sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False))
+        batch_op.add_column(
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            )
+        )
         batch_op.add_column(sa.Column("reviewed_at", sa.DateTime(timezone=True)))
     op.create_index(op.f("ix_reviews_status"), "reviews", ["status"])
     op.create_index(
@@ -41,7 +48,16 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_reviews_workflow_thread_id"), table_name="reviews")
     op.drop_index(op.f("ix_reviews_status"), table_name="reviews")
     with op.batch_alter_table("reviews") as batch_op:
-        for column in ("reviewed_at", "updated_at", "version", "edited_response", "edited_subject", "generated_response", "generated_subject", "workflow_thread_id"):
+        for column in (
+            "reviewed_at",
+            "updated_at",
+            "version",
+            "edited_response",
+            "edited_subject",
+            "generated_response",
+            "generated_subject",
+            "workflow_thread_id",
+        ):
             batch_op.drop_column(column)
         batch_op.alter_column("reviewer_comments", new_column_name="feedback")
         batch_op.alter_column("status", new_column_name="decision")

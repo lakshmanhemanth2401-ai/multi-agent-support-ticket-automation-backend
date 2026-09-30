@@ -14,9 +14,7 @@ def configure_logging() -> None:
         {
             "version": 1,
             "disable_existing_loggers": False,
-            "formatters": {
-                "default": {"()": "app.core.logging.JsonFormatter"}
-            },
+            "formatters": {"default": {"()": "app.core.logging.JsonFormatter"}},
             "handlers": {
                 "console": {
                     "class": "logging.StreamHandler",
@@ -31,6 +29,8 @@ def configure_logging() -> None:
     )
 
     logging.getLogger(__name__).info("Logging configured")
+
+
 request_id_context: ContextVar[str] = ContextVar("request_id", default="-")
 
 
@@ -46,6 +46,6 @@ class JsonFormatter(logging.Formatter):
         for field in ("event", "ticket_id", "agent", "stage", "status"):
             if hasattr(record, field):
                 payload[field] = getattr(record, field)
-        if record.exc_info:
+        if record.exc_info and record.exc_info[0] is not None:
             payload["exception"] = record.exc_info[0].__name__
         return json.dumps(payload, default=str)

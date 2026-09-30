@@ -10,6 +10,7 @@ from app.schemas.review import (
     ReviewActionRequest,
     ReviewCreate,
     ReviewRead,
+    ReviewPage,
     ReviewStatus,
 )
 
@@ -23,7 +24,9 @@ class InvalidReviewTransitionError(ValueError):
 
 
 class ReviewService:
-    def __init__(self, repository: ReviewRepository, audit_service: AuditService | None = None) -> None:
+    def __init__(
+        self, repository: ReviewRepository, audit_service: AuditService | None = None
+    ) -> None:
         self.repository = repository
         self.audit_service = audit_service or AuditService(AuditRepository(repository.db))
 
@@ -46,11 +49,22 @@ class ReviewService:
     def get(self, review_id: int) -> ReviewRead:
         return ReviewRead.model_validate(self._get(review_id))
 
-    def list(self, *, status: ReviewStatus | None = None, offset: int = 0, limit: int = 100) -> list[ReviewRead]:
+    def list(
+        self, *, status: ReviewStatus | None = None, offset: int = 0, limit: int = 100
+    ) -> ReviewPage:
         reviews = self.repository.list(
             status=status.value if status is not None else None, offset=offset, limit=limit
         )
-        return [ReviewRead.model_validate(review) for review in reviews]
+        from app.schemas.pagination import PageMetadata
+
+        return ReviewPage(
+            items=[ReviewRead.model_validate(review) for review in reviews],
+            pagination=PageMetadata(
+                offset=offset,
+                limit=limit,
+                total=self.repository.count(status=status.value if status is not None else None),
+            ),
+        )
 
     def apply_action(self, review_id: int, request: ReviewActionRequest) -> ReviewRead:
         review = self._get(review_id)
@@ -81,9 +95,7 @@ class ReviewService:
         review = self._get(review_id)
         allowed = {ReviewStatus.REJECTED.value, ReviewStatus.REGENERATE_REQUESTED.value}
         if review.status not in allowed:
-            raise InvalidReviewTransitionError(
-                f"Cannot rework review in {review.status} status"
-            )
+            raise InvalidReviewTransitionError(f"Cannot rework review in {review.status} status")
         review.generated_subject = response.subject
         review.generated_response = response.body
         review.status = ReviewStatus.PENDING.value

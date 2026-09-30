@@ -9,13 +9,19 @@ from app.agents.response_agent import ResponseResult
 from app.agents.solution_agent import SolutionResult
 from app.db.database import Base
 from app.db.repositories.review_repository import ReviewRepository
+from app.db.repositories.audit_repository import AuditRepository
 from app.graph.workflow import WorkflowDependencies
 from app.llm.structured_output import ClassificationResult, TicketCategory
 from app.models.ticket import Ticket
 from app.schemas.review import ReviewAction, ReviewActionRequest, ReviewStatus
 from app.schemas.ticket import TicketPriority
 from app.services.review_service import ReviewService
-from app.services.workflow_service import WorkflowExecutionResult, WorkflowExecutionService, WorkflowReviewPause
+from app.services.audit_service import AuditService
+from app.services.workflow_service import (
+    WorkflowExecutionResult,
+    WorkflowExecutionService,
+    WorkflowReviewPause,
+)
 
 
 @pytest.fixture
@@ -26,17 +32,23 @@ def workflow_context():
     session.add(Ticket(title="API unavailable", description="HTTP 503"))
     session.commit()
     classification = ClassificationResult(
-        category=TicketCategory.TECHNICAL, priority=TicketPriority.URGENT,
-        confidence=0.96, reasoning_summary="The API is unavailable."
+        category=TicketCategory.TECHNICAL,
+        priority=TicketPriority.URGENT,
+        confidence=0.96,
+        reasoning_summary="The API is unavailable.",
     )
     knowledge = KnowledgeSearchResult(confidence=0.9, sufficient=True)
     solution = SolutionResult(
-        troubleshooting_steps=["Check the status page."], confidence=0.85,
-        escalation_required=False, summary="Check platform health."
+        troubleshooting_steps=["Check the status page."],
+        confidence=0.85,
+        escalation_required=False,
+        summary="Check platform health.",
     )
     response = ResponseResult(
-        subject="API availability update", body="Please check the public status page.",
-        confidence=0.84, escalation_required=False,
+        subject="API availability update",
+        body="Please check the public status page.",
+        confidence=0.84,
+        escalation_required=False,
     )
     classifier, knowledge_service = AsyncMock(), AsyncMock()
     solution_agent, response_agent = AsyncMock(), AsyncMock()
@@ -44,11 +56,17 @@ def workflow_context():
     knowledge_service.search_for_ticket.return_value = knowledge
     solution_agent.generate.return_value = solution
     response_agent.generate.return_value = response
-    service = WorkflowExecutionService(WorkflowDependencies(
-        classifier=classifier, knowledge_service=knowledge_service,
-        solution_agent=solution_agent, response_agent=response_agent,
-        review_service=ReviewService(ReviewRepository(session)),
-    ))
+    audit_service = AuditService(AuditRepository(session))
+    service = WorkflowExecutionService(
+        WorkflowDependencies(
+            classifier=classifier,
+            knowledge_service=knowledge_service,
+            solution_agent=solution_agent,
+            response_agent=response_agent,
+            review_service=ReviewService(ReviewRepository(session), audit_service),
+            audit_service=audit_service,
+        )
+    )
     yield service, solution_agent, response_agent
     session.close()
     engine.dispose()
@@ -73,6 +91,73 @@ async def test_workflow_pauses_and_completes_after_approval(workflow_context) ->
 
 
 @pytest.mark.asyncio
+async def test_edit_completes_with_reviewer_response(workflow_context) -> None:
+    service, _, _ = workflow_context
+    paused = await service.start(
+        ticket_id=1, title="API unavailable", description="HTTP 503", thread_id="edit-flow"
+    )
+    completed = await service.submit_review(
+        thread_id=paused.thread_id,
+        request=ReviewActionRequest(
+            action=ReviewAction.EDIT,
+            reviewer="lead@example.com",
+            edited_subject="Edited subject",
+            edited_response="Edited and approved response.",
+        ),
+    )
+    assert isinstance(completed, WorkflowExecutionResult)
+    assert completed.review.status is ReviewStatus.EDITED
+    assert completed.response.body == "Edited and approved response."
+
+
+@pytest.mark.asyncio
+async def test_regenerate_routes_to_rework(workflow_context) -> None:
+    service, solution_agent, response_agent = workflow_context
+    paused = await service.start(
+        ticket_id=1,
+        title="API unavailable",
+        description="HTTP 503",
+        thread_id="regenerate-flow",
+    )
+    second_pause = await service.submit_review(
+        thread_id=paused.thread_id,
+        request=ReviewActionRequest(
+            action=ReviewAction.REGENERATE,
+            reviewer="lead@example.com",
+            comments="Generate a clearer response.",
+        ),
+    )
+    assert isinstance(second_pause, WorkflowReviewPause)
+    assert second_pause.review.version == 2
+    assert solution_agent.generate.await_count == 2
+    assert response_agent.generate.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_workflow_and_review_actions_are_audited(workflow_context) -> None:
+    service, _, _ = workflow_context
+    paused = await service.start(
+        ticket_id=1, title="API unavailable", description="HTTP 503", thread_id="audit-flow"
+    )
+    await service.submit_review(
+        thread_id=paused.thread_id,
+        request=ReviewActionRequest(action=ReviewAction.APPROVE, reviewer="lead@example.com"),
+    )
+    events, _ = service.dependencies.audit_service.repository.list_for_ticket(1)
+    actions = {event.action for event in events}
+    assert {
+        "workflow_started",
+        "classifier_completed",
+        "retrieval_completed",
+        "solution_completed",
+        "response_completed",
+        "workflow_awaiting_review",
+        "review_approve",
+        "workflow_completed",
+    } <= actions
+
+
+@pytest.mark.asyncio
 async def test_rejection_routes_to_rework_and_preserves_state(workflow_context) -> None:
     service, solution_agent, response_agent = workflow_context
     paused = await service.start(
@@ -81,7 +166,8 @@ async def test_rejection_routes_to_rework_and_preserves_state(workflow_context) 
     second_pause = await service.submit_review(
         thread_id=paused.thread_id,
         request=ReviewActionRequest(
-            action=ReviewAction.REJECT, reviewer="lead@example.com",
+            action=ReviewAction.REJECT,
+            reviewer="lead@example.com",
             comments="Add regional troubleshooting detail.",
         ),
     )
@@ -90,7 +176,10 @@ async def test_rejection_routes_to_rework_and_preserves_state(workflow_context) 
     assert second_pause.review.version == 2
     assert solution_agent.generate.await_count == 2
     assert response_agent.generate.await_count == 2
-    assert solution_agent.generate.await_args.kwargs["review_feedback"] == "Add regional troubleshooting detail."
+    assert (
+        solution_agent.generate.await_args.kwargs["review_feedback"]
+        == "Add regional troubleshooting detail."
+    )
     completed = await service.submit_review(
         thread_id=paused.thread_id,
         request=ReviewActionRequest(action=ReviewAction.APPROVE, reviewer="lead@example.com"),

@@ -41,9 +41,7 @@ class StructuredOutputError(ValueError):
 StructuredModel = TypeVar("StructuredModel", bound=BaseModel)
 
 
-def parse_structured_output(
-    content: str, model_type: type[StructuredModel]
-) -> StructuredModel:
+def parse_structured_output(content: str, model_type: type[StructuredModel]) -> StructuredModel:
     try:
         return model_type.model_validate_json(content)
     except ValidationError as exc:

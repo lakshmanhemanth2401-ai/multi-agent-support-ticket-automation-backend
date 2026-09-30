@@ -12,9 +12,10 @@ from app.schemas.ticket import TicketPriority
 
 
 def test_postgres_connection_string_removes_sqlalchemy_driver() -> None:
-    assert _postgres_connection_string(
-        "postgresql+psycopg://user:password@postgres/support"
-    ) == "postgresql://user:password@postgres/support"
+    assert (
+        _postgres_connection_string("postgresql+psycopg://user:password@postgres/support")
+        == "postgresql://user:password@postgres/support"
+    )
 
 
 def test_strict_checkpoint_serializer_preserves_domain_types() -> None:

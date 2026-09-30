@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from app.schemas.pagination import PageMetadata
 
 
 class ReviewStatus(StrEnum):
@@ -63,3 +64,8 @@ class ReviewRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     reviewed_at: datetime | None
+
+
+class ReviewPage(BaseModel):
+    items: list[ReviewRead]
+    pagination: PageMetadata

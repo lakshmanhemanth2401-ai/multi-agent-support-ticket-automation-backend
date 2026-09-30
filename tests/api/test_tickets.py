@@ -7,6 +7,9 @@ from sqlalchemy.pool import StaticPool
 from app.db.database import Base
 from app.db.session import get_db
 from app.main import app
+from app.api.dependencies import get_current_user
+from app.models.user import User, UserRole
+from datetime import datetime, timezone
 
 
 @pytest.fixture
@@ -16,9 +19,7 @@ def client() -> TestClient:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    testing_session = sessionmaker(
-        bind=engine, autoflush=False, expire_on_commit=False
-    )
+    testing_session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     Base.metadata.create_all(bind=engine)
 
     def override_get_db():
@@ -26,6 +27,14 @@ def client() -> TestClient:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1,
+        email="admin@example.com",
+        password_hash="unused",
+        role=UserRole.ADMINISTRATOR.value,
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -59,7 +68,8 @@ def test_list_and_get_tickets(client: TestClient) -> None:
 
     list_response = client.get("/api/v1/tickets")
     assert list_response.status_code == 200
-    assert [ticket["id"] for ticket in list_response.json()] == [created["id"]]
+    assert [ticket["id"] for ticket in list_response.json()["items"]] == [created["id"]]
+    assert list_response.json()["pagination"]["total"] == 1
 
     get_response = client.get(f"/api/v1/tickets/{created['id']}")
     assert get_response.status_code == 200

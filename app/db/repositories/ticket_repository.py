@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.repositories.audit_repository import AuditRepository
@@ -24,6 +24,9 @@ class TicketRepository:
     def list(self, *, offset: int = 0, limit: int = 100) -> list[Ticket]:
         statement = select(Ticket).order_by(Ticket.created_at.desc()).offset(offset).limit(limit)
         return list(self.db.scalars(statement).all())
+
+    def count(self) -> int:
+        return self.db.scalar(select(func.count()).select_from(Ticket)) or 0
 
     def get(self, ticket_id: int) -> Ticket | None:
         return self.db.get(Ticket, ticket_id)

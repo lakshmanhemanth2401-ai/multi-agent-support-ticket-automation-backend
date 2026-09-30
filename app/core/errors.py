@@ -17,3 +17,28 @@ class ConflictError(ApplicationError):
     status_code = 409
     code = "invalid_state_transition"
     public_message = "The requested action is not valid for the current state"
+
+
+class AuthenticationError(ApplicationError):
+    status_code = 401
+    code = "authentication_required"
+    public_message = "Valid authentication credentials are required"
+    headers = {"WWW-Authenticate": "Bearer"}
+
+
+class AuthorizationError(ApplicationError):
+    status_code = 403
+    code = "permission_denied"
+    public_message = "You do not have permission to perform this action"
+
+
+class SecurityConfigurationError(ApplicationError):
+    status_code = 503
+    code = "security_not_configured"
+    public_message = "Authentication is temporarily unavailable"
+
+
+class DependencyUnavailableError(ApplicationError):
+    status_code = 503
+    code = "dependency_unavailable"
+    public_message = "A required service is temporarily unavailable"

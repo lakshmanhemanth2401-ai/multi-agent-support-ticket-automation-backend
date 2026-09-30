@@ -140,9 +140,7 @@ class SolutionAgent(BaseAgent[SolutionInput, SolutionResult]):
         return sources
 
     @staticmethod
-    def _escalation(
-        *, reason: str, sources: list[SupportingSource]
-    ) -> SolutionResult:
+    def _escalation(*, reason: str, sources: list[SupportingSource]) -> SolutionResult:
         return SolutionResult(
             supporting_sources=sources,
             escalation_required=True,

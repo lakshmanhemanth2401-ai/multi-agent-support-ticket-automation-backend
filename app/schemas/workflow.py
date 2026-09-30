@@ -2,11 +2,52 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
-from app.agents.knowledge_agent import KnowledgeSearchResult
-from app.agents.response_agent import ResponseResult
-from app.agents.solution_agent import SolutionResult
-from app.llm.structured_output import ClassificationResult
+from app.llm.structured_output import TicketCategory
 from app.schemas.review import ReviewRead
+from app.schemas.ticket import TicketPriority
+from pydantic import Field
+
+
+class ClassificationRead(BaseModel):
+    category: TicketCategory
+    priority: TicketPriority
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class RetrievedKnowledgeRead(BaseModel):
+    content: str
+    source: str
+    metadata: dict[str, object] = Field(default_factory=dict)
+    relevance_score: float = Field(ge=0.0, le=1.0)
+
+
+class KnowledgeContextRead(BaseModel):
+    chunks: list[RetrievedKnowledgeRead]
+    confidence: float = Field(ge=0.0, le=1.0)
+    sufficient: bool
+
+
+class SupportingSourceRead(BaseModel):
+    source: str
+    title: str | None
+    relevance_score: float = Field(ge=0.0, le=1.0)
+
+
+class SolutionRead(BaseModel):
+    summary: str
+    troubleshooting_steps: list[str]
+    supporting_sources: list[SupportingSourceRead]
+    confidence: float = Field(ge=0.0, le=1.0)
+    escalation_required: bool
+    escalation_reason: str | None
+
+
+class GeneratedResponseRead(BaseModel):
+    subject: str
+    body: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    escalation_required: bool
+    supporting_sources: list[SupportingSourceRead]
 
 
 class WorkflowStatus(StrEnum):
@@ -18,7 +59,9 @@ class WorkflowRead(BaseModel):
     thread_id: str
     status: WorkflowStatus
     review: ReviewRead
-    response: ResponseResult
-    classification: ClassificationResult | None = None
-    knowledge: KnowledgeSearchResult | None = None
-    solution: SolutionResult | None = None
+    classification: ClassificationRead
+    knowledge: KnowledgeContextRead
+    solution: SolutionRead
+    generated_response: GeneratedResponseRead
+    confidence: float = Field(ge=0.0, le=1.0)
+    escalation_required: bool

@@ -27,9 +27,7 @@ class AgentService:
         self.solution_agent = solution_agent or SolutionAgent()
 
     async def resolve_ticket(self, *, title: str, description: str) -> TicketResolution:
-        classification = await self.classifier.classify(
-            title=title, description=description
-        )
+        classification = await self.classifier.classify(title=title, description=description)
         knowledge = await self.knowledge_service.search_for_ticket(
             title=title,
             description=description,

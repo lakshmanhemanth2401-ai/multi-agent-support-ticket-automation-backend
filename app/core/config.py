@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     solution_min_confidence: float = Field(default=0.55, ge=0.0, le=1.0)
     retry_max_attempts: int = Field(default=3, ge=1, le=5)
     retry_base_delay_seconds: float = Field(default=0.1, ge=0.0, le=5.0)
+    jwt_secret: SecretStr = SecretStr("")
+    jwt_issuer: str = "support-automation-api"
+    jwt_audience: str = "support-automation-client"
+    access_token_minutes: int = Field(default=15, ge=1, le=60)
+    refresh_token_days: int = Field(default=7, ge=1, le=30)
 
     @field_validator("cors_allowed_origins")
     @classmethod

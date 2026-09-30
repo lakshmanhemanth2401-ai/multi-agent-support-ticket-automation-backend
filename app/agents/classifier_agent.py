@@ -22,15 +22,11 @@ class TicketClassificationInput:
     description: str
 
 
-class ClassifierAgent(
-    BaseAgent[TicketClassificationInput, ClassificationResult]
-):
+class ClassifierAgent(BaseAgent[TicketClassificationInput, ClassificationResult]):
     def __init__(self, client: OllamaClient | None = None) -> None:
         self.client = client or OllamaClient()
 
-    async def run(
-        self, agent_input: TicketClassificationInput
-    ) -> ClassificationResult:
+    async def run(self, agent_input: TicketClassificationInput) -> ClassificationResult:
         schema = ClassificationResult.model_json_schema()
         messages = build_classifier_messages(
             title=agent_input.title,
@@ -50,14 +46,8 @@ class ClassifierAgent(
                 category=TicketCategory.GENERAL,
                 priority=TicketPriority.MEDIUM,
                 confidence=0.0,
-                reasoning_summary=(
-                    "Automated classification unavailable; manual triage required."
-                ),
+                reasoning_summary=("Automated classification unavailable; manual triage required."),
             )
 
-    async def classify(
-        self, *, title: str, description: str
-    ) -> ClassificationResult:
-        return await self.run(
-            TicketClassificationInput(title=title, description=description)
-        )
+    async def classify(self, *, title: str, description: str) -> ClassificationResult:
+        return await self.run(TicketClassificationInput(title=title, description=description))

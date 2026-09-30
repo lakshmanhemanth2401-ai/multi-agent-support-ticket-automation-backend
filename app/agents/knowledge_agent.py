@@ -28,9 +28,7 @@ class KnowledgeSearchResult:
     query: str = ""
 
 
-class KnowledgeSearchAgent(
-    BaseAgent[KnowledgeSearchInput, KnowledgeSearchResult]
-):
+class KnowledgeSearchAgent(BaseAgent[KnowledgeSearchInput, KnowledgeSearchResult]):
     def __init__(
         self,
         retriever: KnowledgeRetriever | None = None,

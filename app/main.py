@@ -1,6 +1,7 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -14,8 +15,11 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.errors import ApplicationError
 from app.api.errors import (
-    application_error_handler, database_error_handler, timeout_error_handler,
-    unexpected_error_handler, validation_error_handler,
+    application_error_handler,
+    database_error_handler,
+    timeout_error_handler,
+    unexpected_error_handler,
+    validation_error_handler,
 )
 from app.observability.middleware import RequestContextMiddleware
 from app.graph.checkpoint import workflow_checkpointer
@@ -37,6 +41,13 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     if service is not None and service.dependencies is not None:
         service.dependencies.review_service.repository.db.close()
         del application.state.workflow_service
+    retriever = getattr(application.state, "knowledge_retriever", None)
+    if retriever is not None:
+        embedding_provider = retriever.vector_store.embedding_provider
+        close = getattr(embedding_provider, "close", None)
+        if close is not None:
+            close()
+        del application.state.knowledge_retriever
     logger.info("Stopping %s", settings.app_name)
 
 
@@ -59,10 +70,10 @@ def create_app() -> FastAPI:
             allow_methods=["GET", "POST", "OPTIONS"],
             allow_headers=["Accept", "Authorization", "Content-Type", "X-Request-ID"],
         )
-    application.add_exception_handler(ApplicationError, application_error_handler)
-    application.add_exception_handler(RequestValidationError, validation_error_handler)
-    application.add_exception_handler(SQLAlchemyError, database_error_handler)
-    application.add_exception_handler(TimeoutError, timeout_error_handler)
+    application.add_exception_handler(ApplicationError, cast(Any, application_error_handler))
+    application.add_exception_handler(RequestValidationError, cast(Any, validation_error_handler))
+    application.add_exception_handler(SQLAlchemyError, cast(Any, database_error_handler))
+    application.add_exception_handler(TimeoutError, cast(Any, timeout_error_handler))
     application.add_exception_handler(Exception, unexpected_error_handler)
     return application
 

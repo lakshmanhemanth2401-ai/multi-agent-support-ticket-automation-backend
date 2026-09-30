@@ -11,6 +11,7 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       CHROMA_PERSIST_DIRECTORY: /app/chroma_data
       LANGGRAPH_STRICT_MSGPACK: "true"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
     ports:
       - "8000:8000"
     depends_on:

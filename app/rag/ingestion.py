@@ -40,9 +40,7 @@ def load_documents(directory: str | Path) -> list[SourceDocument]:
             continue
 
         source = path.relative_to(root).as_posix()
-        title = str(
-            front_matter.get("title") or _title_from_content(content, path.stem)
-        )[:250]
+        title = str(front_matter.get("title") or _title_from_content(content, path.stem))[:250]
         metadata = {
             **front_matter,
             "title": title,

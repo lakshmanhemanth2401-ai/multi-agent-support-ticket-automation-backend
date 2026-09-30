@@ -12,6 +12,8 @@ venv/
 
 .coverage
 htmlcov/
+chroma_data/
+*.db
 
 .idea/
 .vscode/

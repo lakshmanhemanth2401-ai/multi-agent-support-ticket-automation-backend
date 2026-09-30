@@ -1,4 +1,4 @@
-.PHONY: install test lint migrate run compose-up compose-down
+.PHONY: install test lint format typecheck migrate run compose-up compose-down
 
 install:
 	python -m pip install -e ".[dev]"
@@ -8,6 +8,12 @@ test:
 
 lint:
 	python -m ruff check app tests
+
+format:
+	python -m ruff format app tests migrations scripts
+
+typecheck:
+	python -m mypy app
 
 migrate:
 	python -m alembic upgrade head

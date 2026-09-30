@@ -1,18 +1,20 @@
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
 
+if TYPE_CHECKING:
+    from app.models.ticket import Ticket
+
 
 class Review(Base):
     __tablename__ = "reviews"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(
-        ForeignKey("tickets.id", ondelete="CASCADE"), index=True
-    )
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
     workflow_thread_id: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
     generated_subject: Mapped[str | None] = mapped_column(String(200))
     generated_response: Mapped[str | None] = mapped_column(Text)

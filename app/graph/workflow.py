@@ -67,11 +67,23 @@ def build_support_workflow(
         input_schema=WorkflowInput,
         output_schema=WorkflowOutput,
     )
-    builder.add_node(CLASSIFIER_NODE, create_classifier_node(deps.classifier, deps.audit_service))
-    builder.add_node(KNOWLEDGE_NODE, create_knowledge_node(deps.knowledge_service, deps.audit_service))
-    builder.add_node(SOLUTION_NODE, create_solution_node(deps.solution_agent, deps.audit_service))
-    builder.add_node(RESPONSE_NODE, create_response_node(deps.response_agent, deps.audit_service))
-    builder.add_node(REVIEW_RECORD_NODE, create_review_record_node(deps.review_service))
-    builder.add_node(HUMAN_REVIEW_NODE, create_human_review_node(deps.review_service))
+    builder.add_node(  # type: ignore[call-overload]
+        CLASSIFIER_NODE, create_classifier_node(deps.classifier, deps.audit_service)
+    )
+    builder.add_node(  # type: ignore[call-overload]
+        KNOWLEDGE_NODE, create_knowledge_node(deps.knowledge_service, deps.audit_service)
+    )
+    builder.add_node(  # type: ignore[call-overload]
+        SOLUTION_NODE, create_solution_node(deps.solution_agent, deps.audit_service)
+    )
+    builder.add_node(  # type: ignore[call-overload]
+        RESPONSE_NODE, create_response_node(deps.response_agent, deps.audit_service)
+    )
+    builder.add_node(  # type: ignore[call-overload]
+        REVIEW_RECORD_NODE, create_review_record_node(deps.review_service)
+    )
+    builder.add_node(  # type: ignore[call-overload]
+        HUMAN_REVIEW_NODE, create_human_review_node(deps.review_service)
+    )
     add_workflow_edges(builder)
     return builder.compile(checkpointer=checkpointer or InMemorySaver())

@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.review import Review
@@ -23,10 +23,17 @@ class ReviewRepository:
         return self.db.scalar(select(Review).where(Review.workflow_thread_id == thread_id))
 
     def list(self, *, status: str | None = None, offset: int = 0, limit: int = 100) -> list[Review]:
-        statement = select(Review).order_by(Review.created_at.desc()).offset(offset).limit(limit)
+        statement = select(Review)
         if status is not None:
             statement = statement.where(Review.status == status)
+        statement = statement.order_by(Review.created_at.desc()).offset(offset).limit(limit)
         return list(self.db.scalars(statement).all())
+
+    def count(self, *, status: str | None = None) -> int:
+        statement = select(func.count()).select_from(Review)
+        if status is not None:
+            statement = statement.where(Review.status == status)
+        return self.db.scalar(statement) or 0
 
     def save(self, review: Review) -> Review:
         self.db.add(review)

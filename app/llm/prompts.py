@@ -65,8 +65,7 @@ def build_solution_messages(
 ) -> list[dict[str, str]]:
     schema_json = json.dumps(output_schema, separators=(",", ":"))
     evidence_text = "\n\n".join(
-        f"<evidence index=\"{index}\" source=\"{item['source']}\">\n"
-        f"{item['content']}\n</evidence>"
+        f'<evidence index="{index}" source="{item["source"]}">\n{item["content"]}\n</evidence>'
         for index, item in enumerate(evidence, start=1)
     )
     user_prompt = f"""Create recommended troubleshooting steps for this ticket.
@@ -117,13 +116,17 @@ def build_response_messages(
     output_schema: dict[str, Any],
 ) -> list[dict[str, str]]:
     schema_json = json.dumps(output_schema, separators=(",", ":"))
-    steps = "\n".join(
-        f"{index}. {step}" for index, step in enumerate(troubleshooting_steps, start=1)
-    ) or "No verified troubleshooting steps are available."
-    evidence_text = "\n\n".join(
-        f"<evidence source=\"{item['source']}\">\n{item['content']}\n</evidence>"
-        for item in evidence
-    ) or "No supporting evidence is available."
+    steps = (
+        "\n".join(f"{index}. {step}" for index, step in enumerate(troubleshooting_steps, start=1))
+        or "No verified troubleshooting steps are available."
+    )
+    evidence_text = (
+        "\n\n".join(
+            f'<evidence source="{item["source"]}">\n{item["content"]}\n</evidence>'
+            for item in evidence
+        )
+        or "No supporting evidence is available."
+    )
     user_prompt = f"""Draft a customer-ready support response.
 
 Classification: {category}

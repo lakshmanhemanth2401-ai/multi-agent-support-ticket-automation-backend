@@ -5,9 +5,11 @@ from app.api.routes.tickets import router as tickets_router
 from app.api.routes.agents import router as workflows_router
 from app.api.routes.knowledge import router as audit_router
 from app.api.routes.reviews import router as reviews_router
+from app.api.routes.auth import router as auth_router
 
 
 api_router = APIRouter()
+api_router.include_router(auth_router)
 api_router.include_router(health_router)
 api_router.include_router(tickets_router)
 api_router.include_router(workflows_router)
