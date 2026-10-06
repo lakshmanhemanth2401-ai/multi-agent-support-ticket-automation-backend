@@ -30,3 +30,9 @@ class TicketRepository:
 
     def get(self, ticket_id: int) -> Ticket | None:
         return self.db.get(Ticket, ticket_id)
+
+    def save(self, ticket: Ticket) -> Ticket:
+        self.db.add(ticket)
+        self.db.commit()
+        self.db.refresh(ticket)
+        return ticket

@@ -19,6 +19,12 @@ class ConflictError(ApplicationError):
     public_message = "The requested action is not valid for the current state"
 
 
+class AnalysisInProgressError(ApplicationError):
+    status_code = 409
+    code = "analysis_in_progress"
+    public_message = "AI analysis is already running for this ticket"
+
+
 class AuthenticationError(ApplicationError):
     status_code = 401
     code = "authentication_required"

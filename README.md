@@ -38,6 +38,8 @@ Inject production secrets through a platform secret manager.
 ```bash
 python -m pip install -e ".[dev]"
 python -m alembic upgrade head
+ollama pull llama3.2:3b
+ollama pull embeddinggemma
 python -m scripts.create_user --email admin@example.com --role administrator
 python -m uvicorn app.main:app --reload
 ```
@@ -71,6 +73,7 @@ replay attempts can be rejected.
 - `GET /api/v1/tickets?offset=0&limit=100`
 - `GET /api/v1/tickets/{ticket_id}`
 - `POST /api/v1/workflows/tickets/{ticket_id}`
+- `GET /api/v1/workflows/tickets/{ticket_id}`
 - `GET /api/v1/workflows/{thread_id}`
 - `POST /api/v1/workflows/{thread_id}/review`
 - `GET /api/v1/reviews?status=pending&offset=0&limit=100`
@@ -97,6 +100,15 @@ Actions are `approve`, `reject`, `edit`, and `regenerate`. Reject and regenerate
 solution/response generation; approve and edit finish the workflow. Transitions and review
 actions are recorded in the ticket audit trail.
 
+Creating a ticket automatically queues this workflow. The ticket response exposes
+`workflow_thread_id` and `analysis_status` (`queued`, `running`, `awaiting_review`, `completed`,
+or `failed`). The ticket workflow GET endpoint retrieves the automatic result. The POST endpoint
+is idempotent and returns the existing result instead of starting duplicate agent runs.
+
+For the Vite frontend, set `VITE_API_BASE_URL=http://localhost:8000/api/v1`. The backend
+`CORS_ALLOWED_ORIGINS` must contain the exact browser origin (normally
+`http://localhost:5173`). Do not include `/api/v1` in the CORS origin.
+
 ## Knowledge ingestion
 
 ```bash
@@ -114,6 +126,7 @@ docker compose up --build -d
 
 The API applies Alembic migrations before startup. Compose includes PostgreSQL, Ollama,
 Prometheus, and Grafana and requires PostgreSQL, Grafana, and JWT secrets from the environment.
+The one-shot `ollama-init` service downloads both configured Ollama models before the API starts.
 
 ## Verification
 

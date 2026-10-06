@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -7,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.database import Base
 from app.db.session import get_db
 from app.main import app
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_automatic_analysis_runner, get_current_user
 from app.models.user import User, UserRole
 from datetime import datetime, timezone
 
@@ -27,6 +28,7 @@ def client() -> TestClient:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_automatic_analysis_runner] = lambda: AsyncMock()
     app.dependency_overrides[get_current_user] = lambda: User(
         id=1,
         email="admin@example.com",
@@ -58,6 +60,8 @@ def test_create_ticket(client: TestClient) -> None:
     assert payload["id"] == 1
     assert payload["status"] == "open"
     assert payload["priority"] == "high"
+    assert payload["analysis_status"] == "queued"
+    assert payload["workflow_thread_id"]
 
 
 def test_list_and_get_tickets(client: TestClient) -> None:

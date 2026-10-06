@@ -1,4 +1,5 @@
-from typing import Annotated
+from collections.abc import Callable, Coroutine
+from typing import Annotated, Any
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -14,6 +15,7 @@ from app.models.user import User, UserRole
 from app.db.repositories.knowledge_repository import KnowledgeRepository
 from app.services.knowledge_catalog_service import KnowledgeCatalogService
 from app.rag.retriever import KnowledgeRetriever
+from app.services.automatic_analysis_service import run_automatic_ticket_analysis
 
 
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -86,3 +88,13 @@ def get_knowledge_catalog(db: DatabaseSession, request: Request) -> KnowledgeCat
 
 
 KnowledgeCatalog = Annotated[KnowledgeCatalogService, Depends(get_knowledge_catalog)]
+
+
+AutomaticAnalysisRunner = Callable[..., Coroutine[Any, Any, None]]
+
+
+def get_automatic_analysis_runner() -> AutomaticAnalysisRunner:
+    return run_automatic_ticket_analysis
+
+
+AnalysisRunner = Annotated[AutomaticAnalysisRunner, Depends(get_automatic_analysis_runner)]

@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.agents.response_agent import ResponseResult
-from app.api.dependencies import get_workflow_service
+from app.api.dependencies import get_automatic_analysis_runner, get_workflow_service
 from app.api.dependencies import get_current_user
 from app.db.database import Base
 from app.db.session import get_db
@@ -41,6 +41,7 @@ def workflow_api():
     workflow.submit_review = AsyncMock()
     workflow.get_status = AsyncMock()
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_automatic_analysis_runner] = lambda: AsyncMock()
     app.dependency_overrides[get_workflow_service] = lambda: workflow
     app.dependency_overrides[get_current_user] = lambda: User(
         id=1,
@@ -100,12 +101,11 @@ def _pause(ticket_id: int = 1) -> WorkflowReviewPause:
     )
 
 
-def test_start_and_get_workflow(workflow_api) -> None:
+def test_start_is_idempotent_and_gets_automatic_workflow(workflow_api) -> None:
     client, workflow = workflow_api
     ticket = client.post(
         "/api/v1/tickets", json={"title": "API down", "description": "HTTP 503"}
     ).json()
-    workflow.start.return_value = _pause(ticket["id"])
     workflow.get_status.return_value = _pause(ticket["id"])
 
     started = client.post(f"/api/v1/workflows/tickets/{ticket['id']}")
@@ -118,7 +118,8 @@ def test_start_and_get_workflow(workflow_api) -> None:
     assert started.json()["solution"]["troubleshooting_steps"] == ["Check service health"]
     assert fetched.status_code == 200
     assert fetched.json()["thread_id"] == "thread-1"
-    workflow.start.assert_awaited_once()
+    workflow.start.assert_not_awaited()
+    assert workflow.get_status.await_count == 2
 
 
 def test_submit_review_action(workflow_api) -> None:

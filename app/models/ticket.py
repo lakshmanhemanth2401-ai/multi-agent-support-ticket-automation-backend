@@ -24,6 +24,9 @@ class Ticket(Base):
     status: Mapped[str] = mapped_column(String(30), default="open", index=True)
     priority: Mapped[str] = mapped_column(String(20), default="medium", index=True)
     category: Mapped[str | None] = mapped_column(String(100))
+    workflow_thread_id: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
+    analysis_status: Mapped[str] = mapped_column(String(30), default="not_started", index=True)
+    analysis_error: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

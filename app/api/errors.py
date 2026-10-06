@@ -17,7 +17,8 @@ def _response(
     return JSONResponse(
         status_code=status_code,
         content={
-            "error": {"code": code, "message": message, "request_id": request_id_context.get()}
+            "message": message,
+            "error": {"code": code, "message": message, "request_id": request_id_context.get()},
         },
         headers=headers,
     )

@@ -17,6 +17,8 @@ from time import perf_counter
 import logging
 
 from app.observability.metrics import TICKETS_PROCESSED, WORKFLOW_DURATION
+from app.schemas.ticket import TicketAnalysisStatus
+from app.services.ticket_service import TicketService
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +159,12 @@ class WorkflowExecutionService:
                 ticket_id=state["ticket_id"],
                 action="workflow_completed",
                 details={"thread_id": thread_id, "review_status": state["review"].status},
+            )
+        if self.dependencies is not None:
+            TicketService(self.dependencies.review_service.repository.db).set_analysis_state(
+                state["ticket_id"],
+                status=TicketAnalysisStatus.COMPLETED,
+                thread_id=thread_id,
             )
         return WorkflowExecutionResult(
             thread_id=thread_id,

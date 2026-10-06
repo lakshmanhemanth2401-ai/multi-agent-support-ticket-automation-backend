@@ -19,6 +19,15 @@ class TicketPriority(StrEnum):
     URGENT = "urgent"
 
 
+class TicketAnalysisStatus(StrEnum):
+    NOT_STARTED = "not_started"
+    QUEUED = "queued"
+    RUNNING = "running"
+    AWAITING_REVIEW = "awaiting_review"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class TicketCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -44,6 +53,9 @@ class TicketRead(BaseModel):
     status: TicketStatus
     priority: TicketPriority
     category: str | None
+    workflow_thread_id: str | None
+    analysis_status: TicketAnalysisStatus
+    analysis_error: str | None
     created_at: datetime
     updated_at: datetime
 
