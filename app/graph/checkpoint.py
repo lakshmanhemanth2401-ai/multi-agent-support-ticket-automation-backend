@@ -2,9 +2,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from langgraph.checkpoint.memory import InMemorySaver
+import aiosqlite
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from app.agents.knowledge_agent import KnowledgeSearchResult
 from app.agents.response_agent import ResponseResult
@@ -40,13 +41,16 @@ def checkpoint_serializer() -> JsonPlusSerializer:
 
 @asynccontextmanager
 async def workflow_checkpointer() -> AsyncIterator[Any]:
-    """Provide durable PostgreSQL checkpoints, with memory only for SQLite tests/dev."""
+    """Provide durable checkpoints in PostgreSQL or a local SQLite file."""
     if not settings.database_url.startswith("postgresql"):
-        yield InMemorySaver()
+        async with aiosqlite.connect(settings.workflow_checkpoint_path) as connection:
+            saver = AsyncSqliteSaver(connection, serde=checkpoint_serializer())
+            await saver.setup()
+            yield saver
         return
 
     async with AsyncPostgresSaver.from_conn_string(
         _postgres_connection_string(settings.database_url), serde=checkpoint_serializer()
-    ) as saver:
-        await saver.setup()
-        yield saver
+    ) as postgres_saver:
+        await postgres_saver.setup()
+        yield postgres_saver

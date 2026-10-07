@@ -22,6 +22,7 @@ Copy `.env.example` to `.env`, replace every `CHANGE_ME`, and never commit `.env
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL URL; SQLite is supported for development/tests |
+| `WORKFLOW_CHECKPOINT_PATH` | Durable LangGraph SQLite checkpoint file for local development |
 | `JWT_SECRET` | Random token-signing secret of at least 32 characters |
 | `JWT_ISSUER`, `JWT_AUDIENCE` | JWT validation boundaries |
 | `ACCESS_TOKEN_MINUTES`, `REFRESH_TOKEN_DAYS` | Token lifetimes |
@@ -127,6 +128,8 @@ docker compose up --build -d
 The API applies Alembic migrations before startup. Compose includes PostgreSQL, Ollama,
 Prometheus, and Grafana and requires PostgreSQL, Grafana, and JWT secrets from the environment.
 The one-shot `ollama-init` service downloads both configured Ollama models before the API starts.
+PostgreSQL deployments persist LangGraph checkpoints in PostgreSQL. Local SQLite deployments
+persist them in `WORKFLOW_CHECKPOINT_PATH`, so pending reviews survive backend restarts.
 
 ## Verification
 

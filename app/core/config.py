@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     api_v1_prefix: str = Field(default="/api/v1", pattern=r"^/")
     database_url: str = "sqlite+pysqlite:///./support_tickets.db"
+    workflow_checkpoint_path: str = "workflow_checkpoints.db"
     cors_allowed_origins: list[str] = Field(default_factory=list)
     cors_allow_credentials: bool = False
     ollama_base_url: str = "http://localhost:11434"
